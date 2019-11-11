@@ -12,14 +12,24 @@ def checksum(msg):
 	s = 0
 	# loop taking 2 characters at a time
 	for i in range(0, len(msg), 2):
-		w = (ord(msg[i]) << 8) + (ord(msg[i+1]))
+		w = (msg[i] << 8) + (msg[i+1])
 		s = s + w
 
 	s = (s >> 16) + (s & 0xffff);
 	s = ~s & 0xffff
 
 	return s
- 
+
+def get_mac_addr(bytes_addr):
+        bytes_str = map('{:02x}'.format, bytes_addr)
+        mac_addr = ':'.join(bytes_str).upper()
+        return mac_addr
+
+def unpack_eth_header(data):
+        dst_mac, src_mac, proto = unpack('!6s6sH', data)
+        return get_mac_addr(dst_mac),get_mac_addr(src_mac), socket.htons(proto), data[:14]
+
+
 
 if __name__ == "__main__":
 	# src=fe:ed:fa:ce:be:ef, dst=52:54:00:12:35:02, type=0x0800 (IP)
@@ -49,7 +59,7 @@ if __name__ == "__main__":
 	version = 4
 	ihl_version = (version << 4) + ihl
 	tos = 0
-	tot_len = 20 + 10		# 10 É O TAMANHO DO PAYLOAD DO UDP + 8 BYTES DO
+	tot_len = 20 + 8 + 512
 	id = 54321  #Id of this packet
 	frag_off = 0
 	ttl = 255
@@ -74,11 +84,10 @@ if __name__ == "__main__":
 	
 	src_port = 1234
 	dst_port = 5678
-	data_length = 10
+	data_length = 520
 	checksum = 0
-	data_udp = 255
 
-	udp_header = pack('!HHHHH',src_port,dst_port,data_length, checksum,data_udp)
+	udp_header = pack('!HHHH',src_port,dst_port,data_length, checksum)
 
 
 	# pseudo header fields
@@ -90,7 +99,14 @@ if __name__ == "__main__":
 	 
 	psh = pack('!4s4sBBH' , source_address , dest_address , placeholder , protocol , udp_length);
 	psh = psh + udp_header;
-	
+	f = open('log.txt','rb')
+	l = f.read(512)
+####3 GET FILE
+
+
+	#f = open('log.txt','rb')
+   	#l = f.read(512)
+
 #### FALTA checksum(psh) agora
 ### Adicionar o correto checksum no header
 
@@ -101,8 +117,19 @@ if __name__ == "__main__":
 ##					 #
 ########################################## 
 	# final full packet - syn packets dont have any data
-	packet = eth_header + ip_header + udp_header
+	packet = eth_header + ip_header + udp_header + l
 	r = sendeth(packet, "enp4s0")
 	
 	print("Sent %d bytes" % r)
 
+	state = 0
+	while (1):
+		if (state == 0): # AGUARDA REQUEST
+			s = socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.ntohs(3))
+			s.bind(("enp4s0", 0))
+			raw_packet, addr = s.recvfrom(65535)
+			print (addr)
+			recv_dst_mac, recv_src_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
+			print (recv_src_mac)
+		#if (state == 1): # ENVIA 512 BYTES
+		#if (state == 2): # AGUARDA ACK
