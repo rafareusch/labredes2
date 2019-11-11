@@ -30,11 +30,16 @@ def unpack_eth_header(data):
         return get_mac_addr(dst_mac),get_mac_addr(src_mac), socket.htons(proto), data[:14]
 
 
+#def unpack_ipv4_header(data):
 
-if __name__ == "__main__":
+#def unpack_udp_header(data):
+
+#def unpack_udp_subheader(data):
+
+def prepare_packet(dst_mac,src_mac):
+
 	# src=fe:ed:fa:ce:be:ef, dst=52:54:00:12:35:02, type=0x0800 (IP)
-	dst_mac = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff]
-	src_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
+	
 	
 	# Ethernet header
 	eth_header = pack('!6B6BH', dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5], 
@@ -85,9 +90,9 @@ if __name__ == "__main__":
 	src_port = 1234
 	dst_port = 5678
 	data_length = 520
-	checksum = 0
+	checksum_udp = 0
 
-	udp_header = pack('!HHHH',src_port,dst_port,data_length, checksum)
+	udp_header = pack('!HHHH',src_port,dst_port,data_length, checksum_udp)
 
 
 	# pseudo header fields
@@ -122,7 +127,13 @@ if __name__ == "__main__":
 	
 	print("Sent %d bytes" % r)
 
+
+if __name__ == "__main__":
+
 	state = 0
+	dst_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
+	src_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
+	prepare_packet(dst_mac,src_mac)
 	while (1):
 		if (state == 0): # AGUARDA REQUEST
 			s = socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.ntohs(3))
@@ -130,6 +141,27 @@ if __name__ == "__main__":
 			raw_packet, addr = s.recvfrom(65535)
 			print (addr)
 			recv_dst_mac, recv_src_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
-			print (recv_src_mac)
-		#if (state == 1): # ENVIA 512 BYTES
-		#if (state == 2): # AGUARDA ACK
+			print (recv_src_mac,get_mac_addr(src_mac))
+			if (get_mac_addr(src_mac) == recv_dst_mac):
+				print ("Connection")
+				state = 1
+			
+		if (state == 1):# ENVIA 512 BYTES
+				# unpack id header
+				# IF FAST MODE = 1
+				# IF FAST MODE = 2
+				print ("UNPACK IP HEADER")
+				f = open('log.txt','rb')
+				l = f.read(512)
+				# SEND 
+				# STATE 2
+				
+		if (state == 2): # AGUARDA ACK
+				print("WAIT ACK")
+				
+
+
+
+
+
+
