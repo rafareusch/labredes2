@@ -1,5 +1,6 @@
 def unpack_ipv4(data): ##return header ipv4
-    header = unpack('!BBHHHBBH4s4s',data[:160]) #pacote de 20 bytes = 160 bits
+    bits_packet_1 = unpack('!BBHHHBBH4s4s',data[:20]) #pacote de 20 bytes = 160 bits
+    header = "{:32b}".format(bits_packet_1) ##para poder manipular bit a bit
     ihl_version = header[0:7]
     tos = header[8:15]
     tot_len = header[16:31]
@@ -11,12 +12,13 @@ def unpack_ipv4(data): ##return header ipv4
     check = header[80:95]
     saddr = header[96:127]
     daddr = header[128:159]
-    return header, ihl_version, tos, tot_len, id_ipv4, frag_off, ttl, protocol, check, saddr, daddr 
+    return ihl_version, tos, tot_len, id_ipv4, frag_off, ttl, protocol, check, saddr, daddr 
 
 def unpack_udp(data): 
-    header = unpack('!HHHH', data[:64]) #Pacote de 8 bytes = 64 bits
+    bits_packet_1 = unpack('!HHHH', data[:64]) #Pacote de 8 bytes = 64 bits
+    header = "{:32b}".format(bits_packet_1) ##como no ipv4, manipular bit a bit
     src_port = header[0:15]
     dest_port = header[16:31]
     size = header[32:47]
     checksum = header[48:63]
-    return src_port, dest_port, size, checksum, header
+    return src_port, dest_port, size, checksum
