@@ -1,19 +1,22 @@
-#made this
 def unpack_ipv4(data): ##return header ipv4
-    header = unpack('!BBHHHBBHII',packet[14:34]) #[14:34] intervalo header
-    ip_src = '.'.join(map(str, header[8])) #ip_source
-    ip_dst = '.'.join(map(str, header[9])) #ip_dest
-    return header, ip_src, ip_dst
+    header = unpack('!BBHHHBBH4s4s',data[:160]) #pacote de 20 bytes = 160 bits
+    ihl_version = header[0:7]
+    tos = header[8:15]
+    tot_len = header[16:31]
+    id_ipv4 = header[32:47]
+    flags = header[48:50] ##nao usamos no pacote, mas caso precise ja esta aqui
+    frag_off = header[51:63] 
+    ttl = header[64:71]
+    protocol = header[72:79]
+    check = header[80:95]
+    saddr = header[96:127]
+    daddr = header[128:159]
+    return header, ihl_version, tos, tot_len, id_ipv4, frag_off, ttl, protocol, check, saddr, daddr 
 
-# Unpack IPv4 Packets Recieved
-def ipv4_Packet(data): #Got this from https://github.com/O-Luhishi/Python-Packet-Sniffer/blob/master/Packet-Sniffer.py
-    ttl, proto, src, target = unpack('!8xBB2x4s4s', data[:20])
-    version_header_len = data[0]
-    version = version_header_len >> 4
-    header_len = (version_header_len & 15) * 4
-    #ttl, proto, src, target = struct.unpack('! 8x B B 2x 4s 4s', data[:20])
-    return version, header_len, ttl, proto, ipv4(src), ipv4(target), data[header_len:]
-
-def unpack_udp(data): #Got this from https://github.com/O-Luhishi/Python-Packet-Sniffer/blob/master/Packet-Sniffer.py
-    src_port, dest_port, size = unpack('!HH2xH', data[:8])
-    return src_port, dest_port, size, data[8:]
+def unpack_udp(data): 
+    header = unpack('!HHHH', data[:64]) #Pacote de 8 bytes = 64 bits
+    src_port = header[0:15]
+    dest_port = header[16:31]
+    size = header[32:47]
+    checksum = header[48:63]
+    return src_port, dest_port, size, checksum, header
