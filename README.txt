@@ -35,8 +35,8 @@
 
 Process to unpack all data ( the order must be followed)
 1) unpack eth header, see if dst_mac is your mac, if not, listen to next message
-2) unpack ip header         (this wont change)
-3) unpack udp header        (this wont change)                             
+2) unpack ip header         (this wont change) Source -> Same as below
+3) unpack udp header        (this wont change) Source -> https://github.com/O-Luhishi/Python-Packet-Sniffer/blob/master/Packet-Sniffer.py                           
 4) unpack payload header    (this probably will be changed)
 
 
