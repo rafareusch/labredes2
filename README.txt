@@ -4,6 +4,7 @@
 - 1 BYTE - ACK field (if none, set all zeros)
 - 1 BYTE - Last packet
 - 1 BYTE - Send technique (?????)
+- 1 BYTE - Checksum
 
 
 
