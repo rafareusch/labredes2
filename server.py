@@ -2,10 +2,32 @@ import socket, sys
 from socket import AF_PACKET, SOCK_RAW
 from struct import *
 import os
-
+import ipaddress
 #import md5sum
 
-def sendeth(eth_frame, interface = "enp4s0"):
+interface_name = "enp0s3"
+thread_state = 0
+from threading import Thread
+
+class recv_thread(Thread):
+	def __init__ (self, num):
+		Thread.__init__(self)
+		self.num = num
+	def run(self):
+		while(1):
+			if (thread_state == 1): # SEARCH FOR ACK
+				s = socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.ntohs(3))
+				s.bind((interface_name, 0))
+				raw_packet, addr = s.recvfrom(65535) # AUMENTAR?
+				up_client_ip, up_server_ip = unpack_ipv4(raw_packet[14:])
+				print ("Thread - client ip: {}".format(up_client_ip))
+				print ("Thread - server ip: {}".format(up_server_ip))
+			#if (thread_state == 2): # SEARCH FOR ACK
+
+
+
+
+def sendeth(eth_frame, interface = interface_name):
 	"""Send raw Ethernet packet on interface."""
 	s = socket.socket(AF_PACKET, SOCK_RAW)
 	s.bind((interface, 0))
@@ -30,8 +52,21 @@ def get_mac_addr(bytes_addr):
 
 def unpack_eth_header(data):
         dst_mac, src_mac, proto = unpack('!6s6sH', data)
-        return get_mac_addr(dst_mac),get_mac_addr(src_mac), socket.htons(proto), data[:14]
+        return dst_mac,src_mac, socket.htons(proto), data[:14]
 
+def unpack_ipv4(data):
+    ihl_version, tos, tot_len, id_ipv4, frag_off, ttl, protocol, check, source_ip, dest_ip = unpack('!BBHHHBBH4s4s',data[:20]) #pacote de 20 bytes = 160 bits
+    return get_ipv4_addr(source_ip), get_ipv4_addr(dest_ip)
+def unpack_udp(data):
+    src_port, dest_port, size, checksum = unpack('!HHHH', data[:8]) #Pacote de 8 bytes = 64 bits
+    return src_port, dest_port, size
+
+def get_ipv4_addr(bytes_addr):
+        return str(ipaddress.ip_address(bytes_addr))
+
+def unpack_udp_sub_header(data):
+	sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack('!BBBBB', data[:5])
+	return sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum
 
 #def unpack_ipv4_header(data):
 
@@ -40,26 +75,22 @@ def unpack_eth_header(data):
 #def unpack_udp_subheader(data):
 
 
-
-
-
-
 def prepare_packet(dst_mac,src_mac,file_data,udp_send_mode,udp_seq_number,udp_ackfield,udp_lastpacket,file_size):
 
 	# src=fe:ed:fa:ce:be:ef, dst=52:54:00:12:35:02, type=0x0800 (IP)
-	
-	
+
+
 	# Ethernet header
-	eth_header = pack('!6B6BH', dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5], 
+	eth_header = pack('!6B6BH', dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5],
 		src_mac[0], src_mac[1], src_mac[2], src_mac[3], src_mac[4], src_mac[5], 0x0800)
-	
+
 	source_ip = '192.168.1.101'
 	dest_ip = '192.168.1.1'			# or socket.gethostbyname('www.google.com')
-	 
 
 
 
-	
+
+
 
 
 ##########################################
@@ -72,7 +103,7 @@ def prepare_packet(dst_mac,src_mac,file_data,udp_send_mode,udp_seq_number,udp_ac
 	version = 4
 	ihl_version = (version << 4) + ihl
 	tos = 0
-	tot_len = 20 + 8 + file_size +  8
+	tot_len = 20 + 8 + 5 + file_size
 	id = 54321  #Id of this packet
 	frag_off = 0
 	ttl = 255
@@ -80,7 +111,7 @@ def prepare_packet(dst_mac,src_mac,file_data,udp_send_mode,udp_seq_number,udp_ac
 	check = 0
 	saddr = socket.inet_aton(source_ip)
 	daddr = socket.inet_aton(dest_ip)
-	
+
 	# the ! in the pack format string means network order
 	ip_header = pack('!BBHHHBBH4s4s' , ihl_version, tos, tot_len, id, frag_off, ttl, protocol, check, saddr, daddr)
 	check =  checksum(ip_header)
@@ -88,13 +119,13 @@ def prepare_packet(dst_mac,src_mac,file_data,udp_send_mode,udp_seq_number,udp_ac
 	# build the final ip header (with checksum)
 	ip_header = pack('!BBHHHBBH4s4s' , ihl_version, tos, tot_len, id, frag_off, ttl, protocol, check, saddr, daddr)
 
-	 
+
 ##########################################
 ##					 #
 ##	    CREATE UDP PACKET	         #
 ##					 #
 ##########################################
-	
+
 	src_port = 4567
 	dst_port = 9999
 	data_length = file_size + 8
@@ -109,7 +140,7 @@ def prepare_packet(dst_mac,src_mac,file_data,udp_send_mode,udp_seq_number,udp_ac
 	placeholder = 0
 	protocol = socket.IPPROTO_UDP
 	udp_length = len(udp_header)
-	 
+
 	psh = pack('!4s4sBBH' , source_address , dest_address , placeholder , protocol , udp_length)
 	psh = psh + udp_header
 
@@ -122,15 +153,17 @@ def prepare_packet(dst_mac,src_mac,file_data,udp_send_mode,udp_seq_number,udp_ac
 	sub_lastpacket = udp_lastpacket
 	sub_send_mode = udp_send_mode
 	sub_seq_number = udp_seq_number
-	#file_checksum = md5sum('log.txt') FALTA ISSO AINDA
-	udp_sub_header = pack ('!HHHH', sub_seq_number, sub_ack_field, sub_lastpacket,sub_send_mode)
+	file_checksum = 255 #md5sum('log.txt') FALTA ISSO AINDA
+	udp_sub_header = pack ('!BBBBB', sub_seq_number, sub_ack_field, sub_lastpacket,sub_send_mode,file_checksum)
 
-
-
+								    #///			512                 \\\
+	          #   14           20          8           5                499
 	packet = eth_header + ip_header + udp_header + udp_sub_header + file_data
-	r = sendeth(packet, "enp4s0")
-	
+	r = sendeth(packet, interface_name)
+
 	print("Sent %d bytes" % r)
+	print ("len:{}".format(len(udp_sub_header)))
+	print ("len:{}".format(len(file_data)))
 
 
 if __name__ == "__main__":
@@ -138,8 +171,9 @@ if __name__ == "__main__":
 	state = 0
 	sent_packets = 0
 	fast_mode = 0
-
-	dst_mac = [0xFF, 0x0a, 0xFF, 0x11, 0xFF, 0x22]
+	MAX_SIZE_MESSAGE = 499
+	a = recv_thread(1)
+	#dst_mac = [0xFF, 0x0a, 0xFF, 0x11, 0xFF, 0x22]
 	src_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
 	##prepare_packet(dst_mac,src_mac)
 	print ("Waiting for request packet")
@@ -147,14 +181,19 @@ if __name__ == "__main__":
 	while (1):
 		if (state == 0): # AGUARDA REQUEST
 			s = socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.ntohs(3))
-			s.bind(("enp4s0", 0))
-			raw_packet, addr = s.recvfrom(65535)
+			s.bind((interface_name, 0))
+			raw_packet, addr = s.recvfrom(65535) # AUMENTAR?
 			#print (addr)
-			recv_dst_mac, recv_src_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
+			recv_dst_mac, recv_client_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
 			print (recv_dst_mac, recv_eth_proto)
 			if (recv_eth_proto == 8):
-				if (get_mac_addr(src_mac) == recv_dst_mac):
-					print ("Connection")
+				if (get_mac_addr(src_mac) == get_mac_addr(recv_dst_mac)):
+					print ("----- Connection")
+
+					up_client_ip, up_server_ip = unpack_ipv4(raw_packet[14:])
+					up_client_ip, up_server_ip = unpack_ipv4(raw_packet[14:])
+					up_client_port, up_server_port,up_udp_size = unpack_udp(raw_packet[34:])
+					sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack_udp_sub_header(raw_packet[42:])
 					sent_packets = 0
                 		# DEVE FAZER UNPACK DO IP HEADER
                 		# DEVE FAZER UNPACK DO UDP HEADER
@@ -162,18 +201,25 @@ if __name__ == "__main__":
                 		# target_mac = recv_src_mac
                 		# target_port = recv_src_port
 					state = 1
+					print ("seq {}".format(sub_seq_number))
+					print ("ack {}".format(sub_ack_field))
+					print ("sub_checksum {}".format(sub_checksum))
+					print ("client port: {}".format(up_server_port))
+					print ("recv server port: {}".format(recv_dst_mac))
+					print ("recv client port: {}".format(recv_client_mac))
 					file_size = os.stat('log.txt')
 					file_size = file_size.st_size
-					total_num_packets = (int)(file_size/504)
-					
-			
+					total_num_packets = (int)(file_size/MAX_SIZE_MESSAGE)
+					a.start()
+
+
 		if (state == 1):# ENVIA 512 BYTES
 			# unpack id header
 			# IF FAST MODE = 1
 			# IF FAST MODE = 2
-			print ("\n")			
-			print ("##########################  NEW DATA FRAGMENT #############################################################################################################")
-			file_data = f.read(504)
+			print ("\n")
+			print ("##########################  NEW DATA FRAGMENT ")
+			file_data = f.read(MAX_SIZE_MESSAGE)
 			print(file_data)
 			print ("len:{}".format(len(file_data)))
 			print ("packet n:{}".format(sent_packets))
@@ -183,19 +229,13 @@ if __name__ == "__main__":
 			else:
 				last_packet_flag = 0
 
-			prepare_packet(dst_mac,src_mac,file_data,fast_mode,sent_packets,0,last_packet_flag,len(file_data))
-
+			prepare_packet(recv_client_mac,src_mac,file_data,fast_mode,sent_packets,0,last_packet_flag,len(file_data))
 
 			sent_packets = sent_packets + 1
 
 			if (last_packet_flag == 1):
 				state = 0
-			
-				
+
+
 		if (state == 2): # AGUARDA ACK
 			print("WAIT ACK")
-				
-
-
-
-

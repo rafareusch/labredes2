@@ -5,7 +5,7 @@ from struct import *
 def unpack_ipv4(data):
     ihl_version, tos, tot_len, id_ipv4, frag_off, ttl, protocol, check, source_ip, dest_ip = unpack('!BBHHHBBH4s4s',data[:12]) #pacote de 20 bytes = 160 bits
     return ihl_version, tos, tot_len, id_ipv4, frag_off, ttl, protocol, check, source_ip, dest_ip
-def unpack_udp(data): 
+def unpack_udp(data):
     src_port, dest_port, size, checksum = unpack('!HHHH', data[:8]) #Pacote de 8 bytes = 64 bits
     return src_port, dest_port, size, checksum
 
@@ -38,14 +38,14 @@ def unpack_eth_header(data):
 
 
 if __name__ == "__main__":
-	
+
     dst_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
 	src_mac = [0xFF, 0xFF, 0xFF, 0x11, 0x22, 0x22]
 
-    eth_header = pack('!6B6BH', dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5], 
+    eth_header = pack('!6B6BH', dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5],
 	src_mac[0], src_mac[1], src_mac[2], src_mac[3], src_mac[4], src_mac[5], 0x0800)
-    
-    source_ip = '192.168.1.101'
+
+    source_ip = '255.255.1.101'
 	dest_ip = '192.168.1.1'
     received_packets = 0
     state = 0
@@ -54,8 +54,8 @@ if __name__ == "__main__":
 	dst_port = 5678
 	data_length = 520
 	checksum_udp = 32423
-	
-	udp_header = pack('!HHHH',src_port,dst_port,data_length, checksum_udp)	
+
+	udp_header = pack('!HHHH',src_port,dst_port,data_length, checksum_udp)
 	print(len(udp_header))
 	print(unpack_udp(udp_header))
 
