@@ -12,7 +12,7 @@
 - Should use the same send funcion of the server
 
 1 > Send request to server
-      - request => set ACK = 0
+      - request => set last_packet = 0
                    set Seq = 0
                    send
                    go to state 2
