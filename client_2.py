@@ -1,15 +1,37 @@
 import socket, sys
+import stat
+import os
+import time
+import ipaddress
+import hashlib
 from socket import AF_PACKET, SOCK_RAW
 from struct import *
 
-def unpack_ipv4(data):
-    ihl_version, tos, tot_len, id_ipv4, frag_off, ttl, protocol, check, source_ip, dest_ip = unpack('!BBHHHBBH4s4s',data[:20]) #pacote de 20 bytes = 160 bits
-    return ihl_version, tos, tot_len, id_ipv4, frag_off, ttl, protocol, check, source_ip, dest_ip
-def unpack_udp(data): 
-    src_port, dest_port, size, checksum = unpack('!HHHH', data[:8]) #Pacote de 8 bytes = 64 bits
-    return src_port, dest_port, size, checksum
+interface = "enp3s0"
+dst_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
+src_mac = [0xFF, 0xFF, 0xFF, 0x11, 0x22, 0x22]
 
-def sendeth(eth_frame, interface = "enp4s0"):
+
+def unpack_eth_header(data):
+        dst_mac, src_mac, proto = unpack('!6s6sH', data[:14])
+        return dst_mac,src_mac, socket.htons(proto), data[:14]
+
+def unpack_udp_sub_header(data):
+	    sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack('!BBBBB', data[:5])
+	    return sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum
+
+def unpack_ipv4(data):
+    ihl_version, tos, tot_len, id_ipv4, frag_off, ttl, protocol, check, source_ip, dest_ip = unpack('!BBHHHBBH4s4s',data[:20]) #pacote de 20 bytes
+    return get_ipv4_addr(source_ip), get_ipv4_addr(dest_ip)
+
+def unpack_udp(data):
+    src_port, dest_port, size, checksum = unpack('!HHHH', data[:8]) #Pacote de 8 bytes
+    return src_port, dest_port, size
+
+def get_ipv4_addr(bytes_addr):
+        return str(ipaddress.ip_address(bytes_addr))
+
+def sendeth(eth_frame, interface):
 	"""Send raw Ethernet packet on interface."""
 	s = socket.socket(AF_PACKET, SOCK_RAW)
 	s.bind((interface, 0))
@@ -32,32 +54,31 @@ def get_mac_addr(bytes_addr):
         mac_addr = ':'.join(bytes_str).upper()
         return mac_addr
 
-def unpack_eth_header(data):
-        dst_mac, src_mac, proto = unpack('!6s6sH', data)
-        return get_mac_addr(dst_mac),get_mac_addr(src_mac), socket.htons(proto), data[:14]
+def md5(fname):
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 
-def prepare_pack(source_ip,dest_ip,file_size,checksum_udp):
+
+def prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,sub_seq_number):
     
-        dst_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
-        src_mac = [0xFF, 0xFF, 0xFF, 0x11, 0x22, 0x22]
-
         eth_header = pack('!6B6BH', dst_mac[0], dst_mac[1], dst_mac[2], dst_mac[3], dst_mac[4], dst_mac[5], 
         src_mac[0], src_mac[1], src_mac[2], src_mac[3], src_mac[4], src_mac[5], 0x0800)
-        print(unpack_eth_header(eth_header))
+        print(len(eth_header))
 
-        data_length = file_size + 8
-        src_port = 1234
-        dst_port = 5678
+        data_length = 13
+        src_port = 9999
+        dst_port = 4567
 	
         udp_header = pack('!HHHH',src_port,dst_port,data_length, checksum_udp)	
-        print(len(udp_header))
-        print(unpack_udp(udp_header))
 
         ihl = 5
         version = 4
         ihl_version = (version << 4) + ihl
         tos = 0
-        tot_len = 20 + 8 + 512
+        tot_len = 20 + 8 + 5 # 20 ip 8 udp header 5 sub header 499 data
         id_j = 54321  #Id of this packet
         frag_off = 0
         ttl = 255
@@ -68,43 +89,58 @@ def prepare_pack(source_ip,dest_ip,file_size,checksum_udp):
 
         ip_header = pack('!BBHHHBBH4s4s' , ihl_version, tos, tot_len, id_j, frag_off, ttl, protocol, check, source_ip, dest_ip)
     
-        packet = eth_header + udp_header + ip_header
+        sub_ack_field = ack
+        sub_lastpacket = last_packet
+        sub_send_mode = 0
+        file_checksum = 0 #md5sum('log.txt') FALTA ISSO AINDA
+        udp_sub_header = pack ('!BBBBB', sub_seq_number, sub_ack_field, sub_lastpacket,sub_send_mode,file_checksum)
         
-        send_pack = sendeth(packet, "enp4s0")
+        packet = eth_header + ip_header + udp_header + udp_sub_header
+
+        send_pack = sendeth(packet, interface)
         print("sent %d bytes" % send_pack)
 
     
 if __name__ == "__main__":
-    
-    f = open('log.txt','rb')
-    file_size = os.stat('log.txt')
-	file_size = file_size.st_size
-    
+    f = open('log_2.txt','wb')
     source_ip = '192.168.1.101'
-	dest_ip = '192.168.1.1'
-    
-    received_packets = 0
+    dest_ip = '192.168.1.1'
     state = 0
     fast_mode = 0
-    
-    dst_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
-	src_mac = [0xFF, 0xFF, 0xFF, 0x11, 0x22, 0x22]
-
-	src_port = 1234
-	dst_port = 5678
-
-	checksum_udp = 0
-	
-
-    while(1){
+    checksum_udp = 0
+    print(md5('log.txt'))
+    while(1):
         if(state == 0):
             print("Requesting to server")
             s = socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.ntohs(3))
-            s.bind(("enp4s0",0))
-            prepare_pack(source_ip,dest_ip,file_size,src_port,dst_port,checksum_udp)
-            raw_packet = s.recvfrom(65535)
-            recv_dst_mac, recv_src_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
+            s.bind((interface,0))
+            last_packet = 1
+            ack = 1
+            prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,0)
             state = 1
-        if(state == 1): #receber os bytes
+            #----------------------------------------
+        if(state == 1):
+            raw_packet, addr = s.recvfrom(65553)
+            recv_dst_mac, recv_client_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
+            print("\nrev_mac",get_mac_addr(recv_dst_mac))
+            print("recv_proto:",recv_eth_proto)
+            if (recv_eth_proto == 8):
+                print("src_mac",get_mac_addr(src_mac)) 
+                if(get_mac_addr(recv_dst_mac) == get_mac_addr(src_mac)):
+                    print("chegou aqui")
+                    up_client_ip, up_server_ip = unpack_ipv4(raw_packet[14:])
+                    up_client_port, up_server_port,up_udp_size = unpack_udp(raw_packet[34:])
+                    sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack_udp_sub_header(raw_packet[42:])
+                    #----------------------------
+                    data = raw_packet[48:(up_udp_size-13)]
+                    print("---------Message received---------")
+                    print(data)
+                    f.write(data)
+                    prepare_pack(source_ip,dest_ip,0,1,checksum_udp,sub_seq_number)
+                    if(sub_lastpacket == 1):
+                        state = 2 
+            #----------------------------------------
+            #total -8 (header) - 5 (sub_header) para o udp size [47 até (udp_size-13)]
         if(state == 2):
-    }
+            f.close()
+            #md5sum.
