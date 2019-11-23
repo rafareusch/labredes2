@@ -5,7 +5,6 @@ import time
 import ipaddress
 import hashlib
 import requests
-import difflib
 from socket import AF_PACKET, SOCK_RAW
 from struct import *
 
@@ -103,14 +102,14 @@ def md5Checksum(filepath,url):
         with open(filepath,'rb') as fh:
             m = hashlib.md5()
             while True:
-                data = fh.read(8192)
+                data = fh.read(65536)
                 if not data:
                     break
                 m.update(data)
             return m.hexdigest()
     else:
         r=request.get(url)
-        for data in r.iter_content(8192):
+        for data in r.iter_content(65536):
             m.update(data)
         return m.hexdigest()
   
@@ -165,9 +164,10 @@ if __name__ == "__main__":
             #----------------------------------------
             #total -8 (header) - 5 (sub_header) para o udp size [47 até (udp_size-13)]
         if(state == 2):
-            f.close()
-            if(lenght_data == os.path.getsize('log_2.txt')):
+            if(lenght_data == os.path.getsize('log_2.txt') and md5Checksum("log.txt",None) == md5Checksum("log_2.txt",None)):
                 print("Checksum correto")
+                print(md5Checksum("log.txt",None))
+                print(md5Checksum("log_2.txt",None))
                 break
             else:
                 print("Checksum incorreto")
