@@ -7,7 +7,7 @@ import hashlib
 from socket import AF_PACKET, SOCK_RAW
 from struct import *
 
-interface = "enp3s0"
+interface = "enp0s3"
 dst_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
 src_mac = [0xFF, 0xFF, 0xFF, 0x11, 0x22, 0x22]
 
@@ -44,7 +44,7 @@ def checksum(msg):
 		w = (msg[i] << 8) + (msg[i+1])
 		s = s + w
 
-	s = (s >> 16) + (s & 0xffff);
+	s = (s >> 16) + (s & 0xffff)
 	s = ~s & 0xffff
 
 	return s
@@ -100,15 +100,20 @@ def prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,sub_seq_number):
         send_pack = sendeth(packet, interface)
         #print("sent %d bytes" % send_pack)
 
+def deleteContent(fname):
+    with open(fname,"w"):
+        pass
+
     
 if __name__ == "__main__":
     f = open('log_2.txt','wb')
     source_ip = '192.168.1.101'
     dest_ip = '192.168.1.1'
     state = 0
-    fast_mode = 0
     checksum_udp = 0
-    #print(hashlib.md5('log_2.txt'.encode('utf-8')).hexdigest())
+    lenght_data = 0
+    lenght_udp = 0
+    #-----------------------------------------
     while(1):
         if(state == 0):
             print("Requesting to server")
@@ -123,30 +128,32 @@ if __name__ == "__main__":
             raw_packet, addr = s.recvfrom(65553)
             recv_dst_mac, recv_client_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
             if (recv_eth_proto == 8):
-                #print("src_mac",get_mac_addr(src_mac)) 
                 if(get_mac_addr(recv_dst_mac) == get_mac_addr(src_mac)):
-                    #print("chegou aqui")
                     up_client_ip, up_server_ip = unpack_ipv4(raw_packet[14:])
                     up_client_port, up_server_port,up_udp_size = unpack_udp(raw_packet[34:])
                     sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack_udp_sub_header(raw_packet[42:])
-                    #----------------------------
-                    data = raw_packet[47:(up_udp_size-13)]
-                    print("---------Message received---------")
+                    data = raw_packet[47:]
+                    #------------------------------------------
+                    print(up_udp_size)
                     print(data)
+                    print("---------Message received---------")
+                    print(len(data))
+                    #------------------------------------------
                     f.write(data)
+                    lenght_udp = lenght_udp + (up_udp_size - 8)
+                    lenght_data = lenght_data + len(data)
                     prepare_pack(source_ip,dest_ip,0,1,checksum_udp,sub_seq_number)
-                    if(sub_lastpacket == 1):
+                    if(sub_lastpacket == 1 and lenght_data == lenght_udp):
                         state = 2
-                        print("terminou\n")
-                        md5_1 = hashlib.md5('log2.txt'.encode('utf-8')).hexdigest()
-                        md5_2 = hashlib.md5('log.txt'.encode('utf-8')).hexdigest() 
-                        if(md5_1 == md5_2):
-                            print("equal\n")
-                        else:
-                            print("not equal\n")
+                        print("Checksum correto")
+                    else: print("Checksum Incorreto")
+                    if(sub_lastpacket == 2):
+                        deleteContent("log_2.txt")
+                        prepare_pack(source_ip,dest_ip,0,0,checksum_udp,sub_seq_number)
+                        print("Deveria parar")
+                        #brake
+                        #falta seq_number
             #----------------------------------------
             #total -8 (header) - 5 (sub_header) para o udp size [47 até (udp_size-13)]
         if(state == 2):
             f.close()
-            
-            #md5sum.
