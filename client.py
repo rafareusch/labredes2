@@ -4,6 +4,8 @@ import os
 import time
 import ipaddress
 import hashlib
+import requests
+import difflib
 from socket import AF_PACKET, SOCK_RAW
 from struct import *
 
@@ -28,7 +30,7 @@ def unpack_udp(data):
     src_port, dest_port, size, checksum = unpack('!HHHH', data[:8]) #Pacote de 8 bytes
     return src_port, dest_port, size
 
-def get_ipv4_addr(bytes_addr):
+def get_ipv4_addr(bytes_addr): 
         return str(ipaddress.ip_address(bytes_addr))
 
 def sendeth(eth_frame, interface):
@@ -53,14 +55,6 @@ def get_mac_addr(bytes_addr):
         bytes_str = map('{:02x}'.format, bytes_addr)
         mac_addr = ':'.join(bytes_str).upper()
         return mac_addr
-
-def md5(fname):
-    hash_md5 = hashlib.md5()
-    with open(fname, "rb") as f:
-        for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
-
 
 def prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,sub_seq_number):
     
@@ -94,7 +88,6 @@ def prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,sub_seq_number):
         sub_send_mode = 0
         file_checksum = 0 #md5sum('log.txt') FALTA ISSO AINDA
         udp_sub_header = pack ('!BBBBB', sub_seq_number, sub_ack_field, sub_lastpacket,sub_send_mode,file_checksum)
-        
         packet = eth_header + ip_header + udp_header + udp_sub_header
 
         send_pack = sendeth(packet, interface)
@@ -104,7 +97,23 @@ def deleteContent(fname):
     with open(fname,"w"):
         pass
 
-    
+def md5Checksum(filepath,url):
+    m = hashlib.md5()
+    if url==None:
+        with open(filepath,'rb') as fh:
+            m = hashlib.md5()
+            while True:
+                data = fh.read(8192)
+                if not data:
+                    break
+                m.update(data)
+            return m.hexdigest()
+    else:
+        r=request.get(url)
+        for data in r.iter_content(8192):
+            m.update(data)
+        return m.hexdigest()
+  
 if __name__ == "__main__":
     f = open('log_2.txt','wb')
     source_ip = '192.168.1.101'
@@ -112,7 +121,7 @@ if __name__ == "__main__":
     state = 0
     checksum_udp = 0
     lenght_data = 0
-    lenght_udp = 0
+    received_seq = 0
     #-----------------------------------------
     while(1):
         if(state == 0):
@@ -132,28 +141,35 @@ if __name__ == "__main__":
                     up_client_ip, up_server_ip = unpack_ipv4(raw_packet[14:])
                     up_client_port, up_server_port,up_udp_size = unpack_udp(raw_packet[34:])
                     sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack_udp_sub_header(raw_packet[42:])
-                    data = raw_packet[47:]
+                    data = raw_packet[47:546]
                     #------------------------------------------
-                    print(up_udp_size)
                     print(data)
                     print("---------Message received---------")
-                    print(len(data))
-                    #------------------------------------------
+                    print(sub_seq_number)
                     f.write(data)
-                    lenght_udp = lenght_udp + (up_udp_size - 8)
                     lenght_data = lenght_data + len(data)
                     prepare_pack(source_ip,dest_ip,0,1,checksum_udp,sub_seq_number)
-                    if(sub_lastpacket == 1 and lenght_data == lenght_udp):
-                        state = 2
-                        print("Checksum correto")
-                    else: print("Checksum Incorreto")
                     if(sub_lastpacket == 2):
                         deleteContent("log_2.txt")
-                        prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0)
-                        print("Deveria parar")
-                        #brake
-                        #falta seq_number
+                        print("Last_Packet errado")
+                        prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
+                        state = 0
+                    if(received_seq != sub_seq_number):
+                        deleteContent("log_2.txt")
+                        print("Seq_Number errado")
+                        prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
+                        state = 0
+                    received_seq = received_seq + 1   
+                    if(sub_lastpacket == 1 ):
+                        state = 2
             #----------------------------------------
             #total -8 (header) - 5 (sub_header) para o udp size [47 até (udp_size-13)]
         if(state == 2):
             f.close()
+            if(lenght_data == os.path.getsize('log_2.txt')):
+                print("Checksum correto")
+                break
+            else:
+                print("Checksum incorreto")
+                state = 0 #solicita novamente
+            
