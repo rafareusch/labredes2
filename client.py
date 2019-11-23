@@ -149,7 +149,7 @@ if __name__ == "__main__":
                     else: print("Checksum Incorreto")
                     if(sub_lastpacket == 2):
                         deleteContent("log_2.txt")
-                        prepare_pack(source_ip,dest_ip,0,0,checksum_udp,sub_seq_number)
+                        prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0)
                         print("Deveria parar")
                         #brake
                         #falta seq_number
