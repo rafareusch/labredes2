@@ -4,11 +4,16 @@ from struct import *
 import os
 import ipaddress
 import time
+import hashlib
 #import md5sum
 
 interface_name = "enp0s3"
 thread_state = 0
 from threading import Thread
+seq_missing = None
+last_packet_flag = 0
+ack_seq_index = None
+tries = 0
 
 
 class recv_thread(Thread):
@@ -18,6 +23,9 @@ class recv_thread(Thread):
 		self.num = num
 		
 	def run(self):
+		global seq_missing
+		global ack_seq_index
+
 		ack_seq_index = 0
 		s = socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.ntohs(3))
 		s.bind((interface_name, 0))
@@ -29,15 +37,23 @@ class recv_thread(Thread):
 					if (get_mac_addr(src_mac) == get_mac_addr(recv_dst_mac)):
 						sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack_udp_sub_header(raw_packet[42:])
 						print("\n ************ THREAD INFO")
-						print("seq",sub_seq_number)
-						print("ack",sub_ack_field)
-						if (ack_seq_index < sub_seq_number and sub_ack_field == 1):
+						print("Received seq",sub_seq_number)
+						print("Wanted   seq",ack_seq_index)
+						print("Ack",sub_ack_field)
+						
+						if (ack_seq_index != sub_seq_number and sub_ack_field == 1 and sub_lastpacket == 0):
 							# CONTROLE DE ERRO, IR PARA SLOW START
-							print("Ack not received:",ack_seq_index)
-							set_seq_missing(1)
-							#thread_state = 0
-						if (ack_seq_index == sub_seq_number and sub_ack_field == 1):
-							ack_seq_index += 1
+							seq_missing = 1
+							print("Ack not received:",ack_seq_index,"missing",seq_missing)
+							
+
+						if (ack_seq_index == sub_seq_number and sub_ack_field == 1 and sub_lastpacket == 0):
+							print(">>>> ACK RECEIVED <<<< seq:",ack_seq_index)
+							if(last_packet_flag == 1):
+								print("#################################### Client confirm all data is received")
+								ack_seq_index = -1
+							else:
+								ack_seq_index += 1
 
 
 
@@ -45,6 +61,7 @@ class recv_thread(Thread):
 
 def set_seq_missing(x):
 	seq_missing = x
+	print("seq missing",seq_missing)
 
 
 def sendeth(eth_frame, interface = interface_name):
@@ -52,6 +69,24 @@ def sendeth(eth_frame, interface = interface_name):
 	s = socket.socket(AF_PACKET, SOCK_RAW)
 	s.bind((interface, 0))
 	return s.send(eth_frame)
+
+def md5Checksum(filepath,url):
+    m = hashlib.md5()
+    if url==None:
+        with open(filepath,'rb') as fh:
+            m = hashlib.md5()
+            while True:
+                data = fh.read(65536)
+                if not data:
+                    break
+                m.update(data)
+            return m.hexdigest()
+    else:
+        r=request.get(url)
+        for data in r.iter_content(65536):
+            m.update(data)
+        return m.hexdigest()
+  
 
 def checksum(msg):
 	s = 0
@@ -173,8 +208,8 @@ def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_numbe
 	sub_lastpacket = udp_lastpacket
 	sub_send_mode = udp_send_mode
 	sub_seq_number = udp_seq_number
-	file_checksum = 255 #md5sum('log.txt') FALTA ISSO AINDA
-	udp_sub_header = pack ('!BBBBB', sub_seq_number, sub_ack_field, sub_lastpacket,sub_send_mode,file_checksum)
+	file_checksum = 255 # md5Checksum('log.txt',None) 
+	udp_sub_header =  pack ('!BBBBB', sub_seq_number, sub_ack_field, sub_lastpacket,sub_send_mode,file_checksum)
 
 								    #///			512                 \\\
 	          #   14           20          8           5                499
@@ -187,9 +222,9 @@ def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_numbe
 
 total_num_packets = 0
 sent_packets = 0
-seq_missing = 0
 
-MODE = 1 # 1 FAST   0 SLOW
+
+MODE = 2 # 1 FAST   2 SLOW
 
 if __name__ == "__main__":
 
@@ -199,7 +234,7 @@ if __name__ == "__main__":
 	MAX_SIZE_MESSAGE = 499
 	a = recv_thread(1)
 	a.start()
-
+	seq_missing = 0
 	#dst_mac = [0xFF, 0x0a, 0xFF, 0x11, 0xFF, 0x22]
 	src_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
 	dest_ip = '255.168.1.1'
@@ -230,6 +265,7 @@ if __name__ == "__main__":
 					sent_packets = 0
 					if (sub_lastpacket == 1 and sub_ack_field == 1):
 						print ("----- It is a request packet ------ Conection Estabilished")
+						
 						state = MODE
 						thread_state = MODE
 						f = open('log.txt','rb')
@@ -251,36 +287,39 @@ if __name__ == "__main__":
 
 
 		if (state == 1): # FAST START
+			time.sleep(1)
 
+			
 			if (seq_missing == 1): # erro no sequenciamento
 				seq_missing = 0
 				sent_packets = 0
 				f.close
+				MODE = 2
 				f = open('log.txt','rb')
-				state = 2 # slow start
-
-			time.sleep(1)
-			print ("\n")
-			print ("##########################  SENDING DATA ")
-			file_data = f.read(MAX_SIZE_MESSAGE)
-			#print(file_data)
-			print ("len:{}".format(len(file_data)))
-			print ("packet num:{}".format(sent_packets))
-			print ("Total packets :{}".format(total_num_packets))
-			if (sent_packets == total_num_packets):
-				last_packet_flag = 1
-				f.close()
+				print("\n********** SEQ error, Slow Start will be enabled")
+				state = 5 
 			else:
-				last_packet_flag = 0
+				print ("\n")
+				print ("##########################  SENDING DATA ")
+				file_data = f.read(MAX_SIZE_MESSAGE)
+				#print(file_data)
+				print ("len:{}".format(len(file_data)))
+				print ("packet num:{}".format(sent_packets))
+				print ("Total packets :{}".format(total_num_packets))
+				if (sent_packets == total_num_packets):
+					last_packet_flag = 1
+					f.close()
+				else:
+					last_packet_flag = 0
 
-			prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,last_packet_flag,len(file_data))
+				prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,last_packet_flag,len(file_data))
 
-			sent_packets = sent_packets + 1
+				sent_packets = sent_packets + 1
 
-			if (last_packet_flag == 1):
-				print ("########################################### Client confirms all data is received, connection is now ended")
-				print ("\n\n Ready for next connection")
-				state = 0
+				if (last_packet_flag == 1):
+					print ("########################################### All data is sent, waiting for ACK confirmation")
+					start_time = time.time()
+					state = 4
 
 
 		if (state == 2): # SLOW START`
@@ -302,33 +341,97 @@ if __name__ == "__main__":
 			prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,last_packet_flag,len(file_data))
 			thread_state = 2
 			sent_packets = sent_packets + 1
-			
+			start_time = time.time()
 			state = 3
 
 		if (state == 3): # test ack
 			
 			raw_packet, addr = s.recvfrom(65535) # AUMENTAR?
 			recv_dst_mac, recv_server_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
-			if (recv_eth_proto == 8):
-				#print (" server port: {}".format(get_mac_addr(src_mac)))
-				#print ("recv client port: {}".format(get_mac_addr(recv_dst_mac)))
-				if (get_mac_addr(src_mac) == get_mac_addr(recv_dst_mac)):
-					up_client_ip, up_server_ip = unpack_ipv4(raw_packet[14:])
-					up_client_port, up_server_port,up_udp_size = unpack_udp(raw_packet[34:])
-					sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack_udp_sub_header(raw_packet[42:])
-					print ("\n************* WAIT ACK INFO")
-					
-					print ("receivd seq:{}".format(sub_seq_number))
-					print ("wanted  seq: {}".format(sent_packets-1))
+			elapsed_time = time.time()- start_time
+			
+			if (elapsed_time >= 2):
+				print(" \n >>>>>>>>>>>TIMEOUT ")
+				print("\n\n\nReady for next client")
+				last_packet_flag = 0
+				state = 5
+				thread_state = 0
+			else:
+				if (recv_eth_proto == 8):
+					#print (" server port: {}".format(get_mac_addr(src_mac)))
+					#print ("recv client port: {}".format(get_mac_addr(recv_dst_mac)))
+					if (get_mac_addr(src_mac) == get_mac_addr(recv_dst_mac)):
+						up_client_ip, up_server_ip = unpack_ipv4(raw_packet[14:])
+						up_client_port, up_server_port,up_udp_size = unpack_udp(raw_packet[34:])
+						sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack_udp_sub_header(raw_packet[42:])
+						print ("\n************* WAIT ACK INFO")
+						
+						print ("receivd seq:{}".format(sub_seq_number))
+						print ("wanted  seq: {}".format(sent_packets-1))
 
-					# controle de erro caso seq recebido diferente de sent packet
+						# controle de erro caso seq recebido diferente de sent packet
+						if (sub_ack_field == 1 and sub_seq_number != sent_packets-1 and sub_lastpacket == 0):
+							print (" >>> INCORRECT SEQ NUMBER <<<< ")
+							state = 5
 
-					if (sub_ack_field == 1 and sub_seq_number == sent_packets-1):
-						print(" >>> ACK RECEIVED <<< ")
-						if (last_packet_flag == 1):
-							print ("########################################### Client confirms all data is received, connection is now ended")
-							print ("\n\n Ready for next connection")
-							state = 0
-						else:
-							state = 2
+
+						if (sub_ack_field == 1 and sub_seq_number == sent_packets-1 and sub_lastpacket == 0):
+							print(" >>> ACK RECEIVED <<< ")
+							if (last_packet_flag == 1):
+								print ("########################################### Client confirms all data is received, connection is now ended")
+								print ("\n\n Ready for next connection")
+								state = 0
+							else:
+								state = 2
+		if (state == 4):
+			elapsed_time = time.time()- start_time
+			
+			if (elapsed_time >= 2):
+				print(" \n >>>>>>>>>>>TIMEOUT ")
+				print("\n\n\nReady for next client")
+				last_packet_flag = 0
+				state = 5
+				thread_state = 0
+				f.close
+				f = open('log.txt','rb')
+			if(ack_seq_index == -1 and last_packet_flag == 1):
+				print("\n\n\nReady for next client")
+				last_packet_flag = 0
+				state = 0
+				thread_state = 0
+				f.close
+				f = open('log.txt','rb')
+			#	a.stop()
+		
+		if (state == 5):
+			
+			if (tries == 1):
+				print(" \n >>>>>>>>>>> tries exceeded ")
+				print("\n\n\nReady for next client")
+				last_packet_flag = 0
+				state = 0
+				thread_state = 0
+				f.close
+				tries = 0
+				f = open('log.txt','rb')
+			else:
+				f.close
+				f = open('log.txt','rb')
+				file_data = f.read(MAX_SIZE_MESSAGE)
+				prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,2,len(file_data))
+				# SEND LAST PACKET = 2 TO START COMM
+				# SLEEP 
+				# GOTO SEND PACKET
+				state = 0
+				tries += 1
+				print("Retrying, ready for ack-request")
+			
+			
+
+
+
+
+
+			
+
 

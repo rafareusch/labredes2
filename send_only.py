@@ -192,7 +192,7 @@ if __name__ == "__main__":
 	while(1):
 		if (state == 0):
 			if(send_ack == 1):
-				send_message(1,0,0,seq_to_send)
+				send_message(1,1,0,seq_to_send)
 				send_ack = 0
 				state = 1
 		if (state == 1): # SEARCH FOR ACK
@@ -214,16 +214,22 @@ if __name__ == "__main__":
 							message_index = 0
 							f.close
 							f = open('recv_log.txt','wb')
+							print("RESET RECEIVED")
 						if (sub_seq_number == message_index):
-							print("WRITE TO FILE")
+							print("WRITE TO FILE",sub_seq_number)
 							message_index = message_index + 1
 							index = up_udp_size - 8 - 5 
 							print(raw_packet[47:index])
 							f.write(raw_packet[47:index])
 							seq_to_send = message_index
+
+							#if (sub_seq_number == 2):
+							#	print("Will send  wrong ack")
+							#	send_message(1,0,0,5) 
+							#else:
+							#	print("Sending ACK")
 							send_message(1,0,0,sub_seq_number) 
                             
-
 						else:
 							#erro
 							print("SEQUENCIA QUEBRADA")
