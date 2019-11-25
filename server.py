@@ -421,8 +421,8 @@ if __name__ == "__main__":
 		if (state == 5):
 			
 			if (tries == 1):
-				print(" \n >>>>>>>>>>> tries exceeded ")
-				print("\n\n\nReady for next client")
+				print(" >>>>>>>>>>> tries exceeded ")
+				print("\n\n	Ready for next client")
 				last_packet_flag = 0
 				state = 0
 				thread_state = 0
@@ -440,5 +440,5 @@ if __name__ == "__main__":
 				state = 0
 				tries += 1
 				MODE = 2
-				print("\n\n\n 	>>>>>>>>>>>>> RESET SENT")
+				print("\n\n	>>>>>>>>>>>>> RESET SENT")
 				print("Retrying, ready for ack-request or a new request")
