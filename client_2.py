@@ -77,7 +77,7 @@ def prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,sub_seq_number):
         version = 4
         ihl_version = (version << 4) + ihl
         tos = 0
-        tot_len = 20 + 8 + 5 + 32# 20 ip 8 udp header 5 sub header 499 data
+        tot_len = 20 + 8 + 5 # 20 ip 8 udp header 5 sub header 499 data
         id_j = 54321  #Id of this packet
         frag_off = 0
         ttl = 255
@@ -99,6 +99,7 @@ def prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,sub_seq_number):
         packet = eth_header + ip_header + udp_header + udp_sub_header #+ hash_header
 
         send_pack = sendeth(packet, interface)
+        print("sent:",send_pack)
 
 def deleteContent(fname):
     with open(fname,"w"):
@@ -196,5 +197,6 @@ if __name__ == "__main__":
                 print("Checksum incorreto")
                 print(hash_final)
                 print(md5Checksum("log_2.txt",None))
+                #prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,0)
                 state = 0 #solicita novamente
             
