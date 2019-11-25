@@ -10,7 +10,7 @@ import functools
 from socket import AF_PACKET, SOCK_RAW
 from struct import *
 
-interface = "enp0s3"
+interface = "enp3s0"
 dst_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
 src_mac = [0xFF, 0xFF, 0xFF, 0x11, 0x22, 0x22]
 
@@ -128,7 +128,7 @@ def md5Checksum(filepath,url):
         return m.hexdigest()
   
 if __name__ == "__main__":
-    f = open('log_2.txt','wb')
+    #f = open('log_2.txt','wb')
     source_ip = '192.168.1.101'
     dest_ip = '192.168.1.1'
     state = 0
@@ -137,9 +137,10 @@ if __name__ == "__main__":
     received_seq = 0
     #hash_client = '903738b23b241ebecbdf62a14183e37f'
     #type(hash_client)
-    #-----------------------------------------
+    #------------------------------------------------
     while(1):
         if(state == 0):
+            f = open('log_2.txt','wb')
             print("Requesting to server")
             s = socket.socket(socket.AF_PACKET,socket.SOCK_RAW,socket.ntohs(3))
             s.bind((interface,0))
@@ -164,7 +165,6 @@ if __name__ == "__main__":
                     print("\n---------Message received---------")
                     print("Received SEQ",sub_seq_number)
                     print("Wanted   SEQ",received_seq)
-                    f.write(data)
                     lenght_data = lenght_data + len(data)
                     prepare_pack(source_ip,dest_ip,0,1,checksum_udp,sub_seq_number)
                     #------------------------------------------
@@ -173,8 +173,8 @@ if __name__ == "__main__":
                         print("RESET received")
                         prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
                         received_seq = 0
-                        time.sleep(1.5)
-                     
+                        time.sleep(1)
+                        f.close()
                         state = 0
                     #------------------------------------------
                     if(received_seq != sub_seq_number):
@@ -183,18 +183,22 @@ if __name__ == "__main__":
                         prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
                         time.sleep(2)
                         received_seq = 0
-                 
+                        f.close()
                         state = 0
-                    received_seq = received_seq + 1  
+                    if(received_seq == sub_seq_number):    
+                        received_seq = received_seq + 1
+                        f.write(data)  
                     #------------------------------------------ 
                     if(sub_lastpacket == 1 ):
                         
                         f.close()
+                        hash_teste = hash_final
+                        hash_teste2 = md5Checksum("log_2.txt",None)
                         state = 2
-            #----------------------------------------
-            #total -8 (header) - 5 (sub_header) para o udp size [47 até (udp_size-13)]
+                        
+        #------------------------------------------------------
         if(state == 2):
-            if(lenght_data == os.path.getsize('log_2.txt') and hash_final == md5Checksum("log_2.txt",None)):
+            if(hash_teste == hash_teste2):
                 print("Checksum correto")
                 print(hash_final)
                 print(md5Checksum("log_2.txt",None))
@@ -202,11 +206,13 @@ if __name__ == "__main__":
             else:
                 print("Checksum incorreto")
                 print(hash_final)
+                print(type(hash_final))
                 print(md5Checksum("log_2.txt",None))
+                print(type(md5Checksum("log_2.txt",None)))
 
                 time.sleep(1)
                 received_seq = 0
-                f = open('log_2.txt','wb')
+                #f = open('log_2.txt','wb')
 
                 state = 0 #solicita novamente
             
