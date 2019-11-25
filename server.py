@@ -7,7 +7,7 @@ import time
 import hashlib
 #import md5sum
 
-interface_name = "enp0s3"
+interface_name = "enp3s0"
 thread_state = 0
 from threading import Thread
 seq_missing = None
@@ -219,7 +219,7 @@ def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_numbe
 	          #   14           20          8           5                32			467
 	packet = eth_header + ip_header + udp_header + udp_sub_header + hash_header + file_data 
 	r = sendeth(packet, interface_name) #Nao sei pq hash deu 32, testei  num programa fora com um arquivo diferente e deu 32bytes
-
+	print(hash_header)
 	print("Sent %d bytes" % r)
 	print(file_data)
 	print ("len:{}".format(len(udp_sub_header)))
@@ -232,8 +232,7 @@ sent_packets = 0
 
 FAST_SLEEP = 0.01
 SLOW_SLEEP = 1
-
-
+timeout_slow = 0.5
 
 
 if __name__ == "__main__":
@@ -364,7 +363,7 @@ if __name__ == "__main__":
 			recv_dst_mac, recv_server_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
 			elapsed_time = time.time()- start_time
 			
-			if (elapsed_time >= 2):
+			if (elapsed_time >= timeout_slow):
 				print(" \n >>>>>>>>>>>TIMEOUT ")
 				print("\n\n\nReady for next client")
 				last_packet_flag = 0
@@ -440,12 +439,3 @@ if __name__ == "__main__":
 				state = 0
 				tries += 1
 				print("Retrying, ready for ack-request")
-			
-			
-
-
-
-
-
-			
-
