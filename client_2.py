@@ -10,9 +10,9 @@ import functools
 from socket import AF_PACKET, SOCK_RAW
 from struct import *
 
-interface = "enp4s0"
-dst_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
-src_mac = [0xFF, 0xFF, 0xFF, 0x11, 0x22, 0x22]
+interface = "enp3s0"
+dst_mac = [0x00, 0x0a, 0xf7, 0x2b, 0x69, 0x49]
+src_mac = [0xa4, 0x1F, 0x72, 0xF5, 0x90, 0x52]
 
 
 def unpack_eth_header(data):
@@ -87,7 +87,9 @@ def prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,sub_seq_number):
         dest_ip = socket.inet_aton(dest_ip)
 
         ip_header = pack('!BBHHHBBH4s4s' , ihl_version, tos, tot_len, id_j, frag_off, ttl, protocol, check, source_ip, dest_ip)
-    
+        check = checksum(ip_header)
+        ip_header = pack('!BBHHHBBH4s4s' , ihl_version, tos, tot_len, id_j, frag_off, ttl, protocol, check, source_ip, dest_ip)
+
         sub_ack_field = ack
         sub_lastpacket = last_packet
         sub_send_mode = 0
@@ -129,8 +131,8 @@ def md5Checksum(filepath,url):
   
 if __name__ == "__main__":
     #f = open('log_2.txt','wb')
-    source_ip = '192.168.1.101'
-    dest_ip = '192.168.1.1'
+    source_ip = '10.32.143.215'
+    dest_ip = '10.32.143.208'
     state = 0
     checksum_udp = 0
     lenght_data = 0
@@ -153,15 +155,16 @@ if __name__ == "__main__":
             raw_packet, addr = s.recvfrom(65553)
             recv_dst_mac, recv_client_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
             if (recv_eth_proto == 8):
-                if(get_mac_addr(recv_dst_mac) == get_mac_addr(src_mac)):
+                if(get_mac_addr(recv_dst_mac) == get_mac_addr(src_mac) and get_mac_addr(recv_client_mac) == get_mac_addr(dst_mac)):
                     up_client_ip, up_server_ip = unpack_ipv4(raw_packet[14:])
                     up_client_port, up_server_port,up_udp_size = unpack_udp(raw_packet[34:])
+
                     sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack_udp_sub_header(raw_packet[42:])
-                    hash_bytes = unpack_hash(raw_packet[47:]) #unpack hash tuple
+                    #hash_bytes = unpack_hash(raw_packet[47:]) #unpack hash tuple
                     data = raw_packet[79:]
-                    hash_final = conv_hash(hash_bytes) ##function to convert tuple to byte then to string
+                    #hash_final = conv_hash(hash_bytes) ##function to convert tuple to byte then to string
                     #------------------------------------------
-                   
+                
                     print("\n-------------------Message received-------------")
                     print("Received SEQ",sub_seq_number)
                     print("Wanted   SEQ",received_seq)
@@ -191,7 +194,8 @@ if __name__ == "__main__":
 
                         #------------------------------------------ 
                         if(sub_lastpacket == 1 ):
-                            
+                            hash_bytes = unpack_hash(raw_packet[47:])
+                            hash_final = conv_hash(hash_bytes)
                             f.close()
                             hash_teste = hash_final
                             hash_teste2 = md5Checksum("log_2.txt",None)
