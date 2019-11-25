@@ -229,11 +229,19 @@ total_num_packets = 0
 sent_packets = 0
 
 
-MODE = 1 # 1 FAST   2 SLOW
+
+FAST_SLEEP = 0.01
+SLOW_SLEEP = 1
+
+
+
 
 if __name__ == "__main__":
-
+	if (len(sys.argv) < 2 or len(sys.argv) > 2):
+		print ("\nUSAGE: sudo python3 server.py mode       ### mode = {1,2}  1-fast/2-slow\n")
+		exit()
 	state = 0
+	MODE = int(sys.argv[1]) # 1 FAST   2 SLOW
 	hash_byte = md5Checksum('log.txt',None)
 	hash_ready = str.encode(hash_byte) #gera o hash do teu arquivo
 	fast_mode = 0
@@ -246,7 +254,7 @@ if __name__ == "__main__":
 	dest_ip = '255.168.1.1'
 
 
-	print ("Waiting for request packet")
+	print ("Waiting for request packet, mode:",MODE)
 	
 	while (1):
 		if (state == 0): # AGUARDA REQUEST
@@ -293,7 +301,7 @@ if __name__ == "__main__":
 
 
 		if (state == 1): # FAST START
-			time.sleep(0.3)
+			time.sleep(FAST_SLEEP)
 
 			
 			if (seq_missing == 1): # erro no sequenciamento
@@ -329,7 +337,7 @@ if __name__ == "__main__":
 
 
 		if (state == 2): # SLOW START`
-			time.sleep(1)
+			time.sleep(SLOW_SLEEP)
 			print ("\n")
 			print ("#############################  SENDING DATA  (SLOW MODE)   #######################")
 			file_data = f.read(MAX_SIZE_MESSAGE)

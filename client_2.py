@@ -173,7 +173,7 @@ if __name__ == "__main__":
                         print("RESET received")
                         prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
                         received_seq = 0
-                        time.sleep(1)
+                        time.sleep(1.5)
                      
                         state = 0
                     #------------------------------------------
@@ -189,7 +189,7 @@ if __name__ == "__main__":
                     #------------------------------------------ 
                     if(sub_lastpacket == 1 ):
                         
-                        
+                        f.close()
                         state = 2
             #----------------------------------------
             #total -8 (header) - 5 (sub_header) para o udp size [47 até (udp_size-13)]
