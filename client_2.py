@@ -160,29 +160,35 @@ if __name__ == "__main__":
                     hash_final = conv_hash(hash_bytes) ##function to convert tuple to byte then to string
                     #------------------------------------------
                     print(data)
-                    print("---------Message received---------")
-                    print(sub_seq_number)
+                    print("\n---------Message received---------")
+                    print("Received SEQ",sub_seq_number)
+                    print("Wanted   SEQ",received_seq)
                     f.write(data)
                     lenght_data = lenght_data + len(data)
                     prepare_pack(source_ip,dest_ip,0,1,checksum_udp,sub_seq_number)
                     #------------------------------------------
                     if(sub_lastpacket == 2):
-                        print("entrou aqui")
                         deleteContent("log_2.txt")
-                        print("Last_Packet errado")
+                        print("RESET received")
                         prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
+                        received_seq = 0
+                        time.sleep(1)
+                     
                         state = 0
                     #------------------------------------------
                     if(received_seq != sub_seq_number):
-                        print("entrou aqui 2")
                         deleteContent("log_2.txt")
                         print("Seq_Number errado")
                         prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
+                        time.sleep(2)
+                        received_seq = 0
+                 
                         state = 0
                     received_seq = received_seq + 1  
                     #------------------------------------------ 
                     if(sub_lastpacket == 1 ):
-                        f.close()
+                        
+                        
                         state = 2
             #----------------------------------------
             #total -8 (header) - 5 (sub_header) para o udp size [47 até (udp_size-13)]
@@ -196,5 +202,7 @@ if __name__ == "__main__":
                 print("Checksum incorreto")
                 print(hash_final)
                 print(md5Checksum("log_2.txt",None))
+                time.sleep(1)
+                received_seq = 0
                 state = 0 #solicita novamente
             

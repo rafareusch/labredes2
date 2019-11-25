@@ -143,7 +143,7 @@ if __name__ == "__main__":
                     data = raw_packet[47:546]
                     #------------------------------------------
                     print(data)
-                    print("---------Message received---------")
+                    print("\n--- ---------Message received---------")
                     print(sub_seq_number)
                     f.write(data)
                     lenght_data = lenght_data + len(data)

@@ -221,6 +221,7 @@ def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_numbe
 	r = sendeth(packet, interface_name) #Nao sei pq hash deu 32, testei  num programa fora com um arquivo diferente e deu 32bytes
 
 	print("Sent %d bytes" % r)
+	print(file_data)
 	print ("len:{}".format(len(udp_sub_header)))
 	print ("len:{}".format(len(file_data)))
 
@@ -228,7 +229,7 @@ total_num_packets = 0
 sent_packets = 0
 
 
-MODE = 2 # 1 FAST   2 SLOW
+MODE = 1 # 1 FAST   2 SLOW
 
 if __name__ == "__main__":
 
@@ -292,7 +293,7 @@ if __name__ == "__main__":
 
 
 		if (state == 1): # FAST START
-			time.sleep(1)
+			time.sleep(0.4)
 
 			
 			if (seq_missing == 1): # erro no sequenciamento
@@ -305,7 +306,7 @@ if __name__ == "__main__":
 				state = 5 
 			else:
 				print ("\n")
-				print ("##########################  SENDING DATA ")
+				print ("##########################  SENDING DATA (FAST MODE)   #############################")
 				file_data = f.read(MAX_SIZE_MESSAGE)
 				#print(file_data)
 				print ("len:{}".format(len(file_data)))
@@ -330,7 +331,7 @@ if __name__ == "__main__":
 		if (state == 2): # SLOW START`
 			time.sleep(1)
 			print ("\n")
-			print ("##########################  SENDING DATA ")
+			print ("#############################  SENDING DATA  (SLOW MODE)   #######################")
 			file_data = f.read(MAX_SIZE_MESSAGE)
 			#print(file_data)
 			print ("len:{}".format(len(file_data)))
