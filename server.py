@@ -7,7 +7,7 @@ import time
 import hashlib
 #import md5sum
 
-interface_name = "enp3s0"
+interface_name = "enp4s0"
 thread_state = 0
 from threading import Thread
 seq_missing = None
@@ -219,11 +219,11 @@ def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_numbe
 	          #   14           20          8           5                32			467
 	packet = eth_header + ip_header + udp_header + udp_sub_header + hash_header + file_data 
 	r = sendeth(packet, interface_name) #Nao sei pq hash deu 32, testei  num programa fora com um arquivo diferente e deu 32bytes
-	print(hash_header)
+	#print(hash_header)
 	print("Sent %d bytes" % r)
-	print(file_data)
-	print ("len:{}".format(len(udp_sub_header)))
-	print ("len:{}".format(len(file_data)))
+	#print(file_data)
+	#print ("len:{}".format(len(udp_sub_header)))
+	#print ("len:{}".format(len(file_data)))
 
 total_num_packets = 0
 sent_packets = 0
@@ -232,7 +232,7 @@ sent_packets = 0
 
 FAST_SLEEP = 0.01
 SLOW_SLEEP = 1
-timeout_slow = 0.5
+timeout_slow = 0.25
 
 
 if __name__ == "__main__":
@@ -278,9 +278,8 @@ if __name__ == "__main__":
 					sent_packets = 0
 					if (sub_lastpacket == 1 and sub_ack_field == 1):
 						print ("----- It is a request packet ------ Conection Estabilished")
-						
+						ack_seq_index = 0
 						state = MODE
-						thread_state = MODE
 						f = open('log.txt','rb')
 						 # Thread start
 						
@@ -304,6 +303,7 @@ if __name__ == "__main__":
 
 			
 			if (seq_missing == 1): # erro no sequenciamento
+				ack_seq_index = 0
 				seq_missing = 0
 				sent_packets = 0
 				f.close
@@ -316,7 +316,7 @@ if __name__ == "__main__":
 				print ("##########################  SENDING DATA (FAST MODE)   #############################")
 				file_data = f.read(MAX_SIZE_MESSAGE)
 				#print(file_data)
-				print ("len:{}".format(len(file_data)))
+				#print ("len:{}".format(len(file_data)))
 				print ("packet num:{}".format(sent_packets))
 				print ("Total packets :{}".format(total_num_packets))
 				if (sent_packets == total_num_packets):
@@ -326,7 +326,7 @@ if __name__ == "__main__":
 					last_packet_flag = 0
 
 				prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,last_packet_flag,len(file_data),hash_ready)
-
+				thread_state = MODE
 				sent_packets = sent_packets + 1
 
 				if (last_packet_flag == 1):
@@ -364,8 +364,8 @@ if __name__ == "__main__":
 			elapsed_time = time.time()- start_time
 			
 			if (elapsed_time >= timeout_slow):
-				print(" \n >>>>>>>>>>>TIMEOUT ")
-				print("\n\n\nReady for next client")
+				print(" \n >>>>>>>>>>>>>>>>>>>>>>>TIMEOUT ")
+				print("\n\n\n")
 				last_packet_flag = 0
 				state = 5
 				thread_state = 0
@@ -425,11 +425,11 @@ if __name__ == "__main__":
 				last_packet_flag = 0
 				state = 0
 				thread_state = 0
-				f.close
+				f.close()
 				tries = 0
 				f = open('log.txt','rb')
 			else:
-				f.close
+				f.close()
 				f = open('log.txt','rb')
 				file_data = f.read(MAX_SIZE_MESSAGE)
 				prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,2,len(file_data),hash_ready)
@@ -438,4 +438,5 @@ if __name__ == "__main__":
 				# GOTO SEND PACKET
 				state = 0
 				tries += 1
+				print("\n\n\n 	>>>>>>>>>>>>> RESET SENT")
 				print("Retrying, ready for ack-request")

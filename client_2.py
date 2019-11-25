@@ -10,7 +10,7 @@ import functools
 from socket import AF_PACKET, SOCK_RAW
 from struct import *
 
-interface = "enp3s0"
+interface = "enp4s0"
 dst_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
 src_mac = [0xFF, 0xFF, 0xFF, 0x11, 0x22, 0x22]
 
@@ -161,40 +161,41 @@ if __name__ == "__main__":
                     data = raw_packet[79:]
                     hash_final = conv_hash(hash_bytes) ##function to convert tuple to byte then to string
                     #------------------------------------------
-                    print(data)
-                    print("\n---------Message received---------")
+                   
+                    print("\n-------------------Message received-------------")
                     print("Received SEQ",sub_seq_number)
                     print("Wanted   SEQ",received_seq)
+                    print(data)
                     lenght_data = lenght_data + len(data)
-                    prepare_pack(source_ip,dest_ip,0,1,checksum_udp,sub_seq_number)
                     #------------------------------------------
                     if(sub_lastpacket == 2):
                         deleteContent("log_2.txt")
                         print("RESET received")
-                        prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
                         received_seq = 0
-                        time.sleep(1)
-                        f.close()
-                        state = 0
-                    #------------------------------------------
-                    if(received_seq != sub_seq_number):
-                        deleteContent("log_2.txt")
-                        print("Seq_Number errado")
-                        prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
                         time.sleep(2)
-                        received_seq = 0
                         f.close()
                         state = 0
-                    if(received_seq == sub_seq_number):    
-                        received_seq = received_seq + 1
-                        f.write(data)  
-                    #------------------------------------------ 
-                    if(sub_lastpacket == 1 ):
-                        
-                        f.close()
-                        hash_teste = hash_final
-                        hash_teste2 = md5Checksum("log_2.txt",None)
-                        state = 2
+                    else:
+                        #------------------------------------------
+                        if(received_seq != sub_seq_number):
+                            deleteContent("log_2.txt")
+                            print("Seq_Number errado")
+                            time.sleep(2)
+                            received_seq = 0
+                            f.close()
+                            state = 0
+                        if(received_seq == sub_seq_number):   
+                            prepare_pack(source_ip,dest_ip,0,1,checksum_udp,sub_seq_number) 
+                            received_seq = received_seq + 1
+                            f.write(data)  
+
+                        #------------------------------------------ 
+                        if(sub_lastpacket == 1 ):
+                            
+                            f.close()
+                            hash_teste = hash_final
+                            hash_teste2 = md5Checksum("log_2.txt",None)
+                            state = 2
                         
         #------------------------------------------------------
         if(state == 2):
