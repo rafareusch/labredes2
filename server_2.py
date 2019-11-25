@@ -7,7 +7,7 @@ import time
 import hashlib
 #import md5sum
 
-interface_name = "enp0s3"
+interface_name = "enp3s0"
 thread_state = 0
 from threading import Thread
 seq_missing = None
@@ -219,8 +219,9 @@ def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_numbe
 	          #   14           20          8           5                32			467
 	packet = eth_header + ip_header + udp_header + udp_sub_header + hash_header + file_data 
 	r = sendeth(packet, interface_name) #Nao sei pq hash deu 32, testei  num programa fora com um arquivo diferente e deu 32bytes
-
+	print(hash_header)
 	print("Sent %d bytes" % r)
+	print(file_data)
 	print ("len:{}".format(len(udp_sub_header)))
 	print ("len:{}".format(len(file_data)))
 
@@ -228,11 +229,18 @@ total_num_packets = 0
 sent_packets = 0
 
 
-MODE = 2 # 1 FAST   2 SLOW
+
+FAST_SLEEP = 0.01
+SLOW_SLEEP = 1
+timeout_slow = 0.5
+
 
 if __name__ == "__main__":
-
+	if (len(sys.argv) < 2 or len(sys.argv) > 2):
+		print ("\nUSAGE: sudo python3 server.py mode       ### mode = {1,2}  1-fast/2-slow\n")
+		exit()
 	state = 0
+	MODE = int(sys.argv[1]) # 1 FAST   2 SLOW
 	hash_byte = md5Checksum('log.txt',None)
 	hash_ready = str.encode(hash_byte) #gera o hash do teu arquivo
 	fast_mode = 0
@@ -245,7 +253,7 @@ if __name__ == "__main__":
 	dest_ip = '255.168.1.1'
 
 
-	print ("Waiting for request packet")
+	print ("Waiting for request packet, mode:",MODE)
 	
 	while (1):
 		if (state == 0): # AGUARDA REQUEST
@@ -292,7 +300,7 @@ if __name__ == "__main__":
 
 
 		if (state == 1): # FAST START
-			time.sleep(1)
+			time.sleep(FAST_SLEEP)
 
 			
 			if (seq_missing == 1): # erro no sequenciamento
@@ -305,7 +313,7 @@ if __name__ == "__main__":
 				state = 5 
 			else:
 				print ("\n")
-				print ("##########################  SENDING DATA ")
+				print ("##########################  SENDING DATA (FAST MODE)   #############################")
 				file_data = f.read(MAX_SIZE_MESSAGE)
 				#print(file_data)
 				print ("len:{}".format(len(file_data)))
@@ -328,9 +336,9 @@ if __name__ == "__main__":
 
 
 		if (state == 2): # SLOW START`
-			time.sleep(1)
+			time.sleep(SLOW_SLEEP)
 			print ("\n")
-			print ("##########################  SENDING DATA ")
+			print ("#############################  SENDING DATA  (SLOW MODE)   #######################")
 			file_data = f.read(MAX_SIZE_MESSAGE)
 			#print(file_data)
 			print ("len:{}".format(len(file_data)))
@@ -355,7 +363,7 @@ if __name__ == "__main__":
 			recv_dst_mac, recv_server_mac, recv_eth_proto, recv_data_eth = unpack_eth_header(raw_packet[:14])
 			elapsed_time = time.time()- start_time
 			
-			if (elapsed_time >= 2):
+			if (elapsed_time >= timeout_slow):
 				print(" \n >>>>>>>>>>>TIMEOUT ")
 				print("\n\n\nReady for next client")
 				last_packet_flag = 0
@@ -404,6 +412,7 @@ if __name__ == "__main__":
 				last_packet_flag = 0
 				state = 0
 				thread_state = 0
+				ack_seq_index = 0
 				f.close
 				f = open('log.txt','rb')
 			#	a.stop()
@@ -430,13 +439,3 @@ if __name__ == "__main__":
 				state = 0
 				tries += 1
 				print("Retrying, ready for ack-request")
-			
-			
-
-
-
-
-
-			
-
-
