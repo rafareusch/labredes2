@@ -293,7 +293,7 @@ if __name__ == "__main__":
 
 
 		if (state == 1): # FAST START
-			time.sleep(0.4)
+			time.sleep(0.3)
 
 			
 			if (seq_missing == 1): # erro no sequenciamento
@@ -405,6 +405,7 @@ if __name__ == "__main__":
 				last_packet_flag = 0
 				state = 0
 				thread_state = 0
+				ack_seq_index = 0
 				f.close
 				f = open('log.txt','rb')
 			#	a.stop()
