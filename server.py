@@ -211,7 +211,7 @@ def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_numbe
 	sub_lastpacket = udp_lastpacket
 	sub_send_mode = udp_send_mode
 	sub_seq_number = udp_seq_number
-	file_checksum = 255 # md5Checksum('log.txt',None) 
+	file_checksum = 255 # md5Checksum(filename,None) 
 	udp_sub_header =  pack('!BBBBB', sub_seq_number, sub_ack_field, sub_lastpacket,sub_send_mode,file_checksum)
 
 	hash_header = pack('!32s',hash_verification)
@@ -233,15 +233,16 @@ sent_packets = 0
 FAST_SLEEP = 0.01
 SLOW_SLEEP = 1
 timeout_slow = 0.25
-
+filename = None
 
 if __name__ == "__main__":
-	if (len(sys.argv) < 2 or len(sys.argv) > 2):
+	if (len(sys.argv) < 3 or len(sys.argv) > 3):
 		print ("\nUSAGE: sudo python3 server.py mode       ### mode = {1,2}  1-fast/2-slow\n")
 		exit()
+	filename = sys.argv[2]
 	state = 0
 	MODE = int(sys.argv[1]) # 1 FAST   2 SLOW
-	hash_byte = md5Checksum('log.txt',None)
+	hash_byte = md5Checksum(filename,None)
 	hash_ready = str.encode(hash_byte) #gera o hash do teu arquivo
 	fast_mode = 0
 	MAX_SIZE_MESSAGE = 467
@@ -249,7 +250,7 @@ if __name__ == "__main__":
 	a.start()
 	seq_missing = 0
 	#dst_mac = [0xFF, 0x0a, 0xFF, 0x11, 0xFF, 0x22]
-	src_mac = [0x00, 0x0a, 0x11, 0x11, 0x22, 0x22]
+	src_mac = [0x00,0x0a,0xf7,0x2b,0x69,0x49]
 	dest_ip = '255.168.1.1'
 
 
@@ -280,7 +281,7 @@ if __name__ == "__main__":
 						print ("----- It is a request packet ------ Conection Estabilished")
 						ack_seq_index = 0
 						state = MODE
-						f = open('log.txt','rb')
+						f = open(filename,'rb')
 						 # Thread start
 						
 					else:
@@ -292,7 +293,7 @@ if __name__ == "__main__":
 					print ("client port: {}".format(up_server_port))
 					print ("recv server port: {}".format(recv_dst_mac))
 					print ("recv client port: {}".format(recv_client_mac))
-					file_size = os.stat('log.txt')
+					file_size = os.stat(filename)
 					file_size = file_size.st_size
 					total_num_packets = (int)(file_size/MAX_SIZE_MESSAGE)
 					
@@ -308,7 +309,7 @@ if __name__ == "__main__":
 				sent_packets = 0
 				f.close
 				MODE = 2
-				f = open('log.txt','rb')
+				f = open(filename,'rb')
 				print("\n********** SEQ error, Slow Start will be enabled")
 				state = 5 
 			else:
@@ -401,20 +402,20 @@ if __name__ == "__main__":
 			
 			if (elapsed_time >= 2):
 				print(" \n >>>>>>>>>>>TIMEOUT ")
-				print("\n\n\nReady for next client")
+				#print("\n\n\nReady for next client")
 				last_packet_flag = 0
 				state = 5
 				thread_state = 0
 				f.close
-				f = open('log.txt','rb')
+				f = open(filename,'rb')
 			if(ack_seq_index == -1 and last_packet_flag == 1):
-				print("\n\n\nReady for next client")
+				#print("\n\n\nReady for next client")
 				last_packet_flag = 0
 				state = 0
 				thread_state = 0
 				ack_seq_index = 0
 				f.close
-				f = open('log.txt','rb')
+				f = open(filename,'rb')
 			#	a.stop()
 		
 		if (state == 5):
@@ -427,10 +428,10 @@ if __name__ == "__main__":
 				thread_state = 0
 				f.close()
 				tries = 0
-				f = open('log.txt','rb')
+				f = open(filename,'rb')
 			else:
 				f.close()
-				f = open('log.txt','rb')
+				f = open(filename,'rb')
 				file_data = f.read(MAX_SIZE_MESSAGE)
 				prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,2,len(file_data),hash_ready)
 				# SEND LAST PACKET = 2 TO START COMM
@@ -438,5 +439,6 @@ if __name__ == "__main__":
 				# GOTO SEND PACKET
 				state = 0
 				tries += 1
+				MODE = 2
 				print("\n\n\n 	>>>>>>>>>>>>> RESET SENT")
-				print("Retrying, ready for ack-request")
+				print("Retrying, ready for ack-request or a new request")
