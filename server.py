@@ -86,7 +86,10 @@ def md5Checksum(filepath,url):
         for data in r.iter_content(65536):
             m.update(data)
         return m.hexdigest()
-  
+
+def unpack_hash(data):
+    hash_data = unpack('!32s',data[:32])
+    return hash_data 
 
 def checksum(msg):
 	s = 0
@@ -130,7 +133,7 @@ def unpack_udp_sub_header(data):
 #def unpack_udp_subheader(data):
 
 
-def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_number,udp_ackfield,udp_lastpacket,file_size):
+def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_number,udp_ackfield,udp_lastpacket,file_size,hash_verification):
 
 	# src=fe:ed:fa:ce:be:ef, dst=52:54:00:12:35:02, type=0x0800 (IP)
 
@@ -158,7 +161,7 @@ def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_numbe
 	version = 4
 	ihl_version = (version << 4) + ihl
 	tos = 0
-	tot_len = 20 + 8 + 5 + file_size
+	tot_len = 20 + 8 + 5 + 32 + file_size #32 bytes do hash (???) 
 	id = 54321  #Id of this packet
 	frag_off = 0
 	ttl = 255
@@ -209,12 +212,13 @@ def prepare_packet(dst_mac,src_mac,dest_ip,file_data,udp_send_mode,udp_seq_numbe
 	sub_send_mode = udp_send_mode
 	sub_seq_number = udp_seq_number
 	file_checksum = 255 # md5Checksum('log.txt',None) 
-	udp_sub_header =  pack ('!BBBBB', sub_seq_number, sub_ack_field, sub_lastpacket,sub_send_mode,file_checksum)
+	udp_sub_header =  pack('!BBBBB', sub_seq_number, sub_ack_field, sub_lastpacket,sub_send_mode,file_checksum)
 
-								    #///			512                 \\\
-	          #   14           20          8           5                499
-	packet = eth_header + ip_header + udp_header + udp_sub_header + file_data
-	r = sendeth(packet, interface_name)
+	hash_header = pack('!32s',hash_verification)
+								    #///			512                 \\\ 
+	          #   14           20          8           5                32			467
+	packet = eth_header + ip_header + udp_header + udp_sub_header + hash_header + file_data 
+	r = sendeth(packet, interface_name) #Nao sei pq hash deu 32, testei  num programa fora com um arquivo diferente e deu 32bytes
 
 	print("Sent %d bytes" % r)
 	print ("len:{}".format(len(udp_sub_header)))
@@ -229,9 +233,10 @@ MODE = 2 # 1 FAST   2 SLOW
 if __name__ == "__main__":
 
 	state = 0
-	
+	hash_byte = md5Checksum('log.txt',None)
+	hash_ready = str.encode(hash_byte) #gera o hash do teu arquivo
 	fast_mode = 0
-	MAX_SIZE_MESSAGE = 499
+	MAX_SIZE_MESSAGE = 467
 	a = recv_thread(1)
 	a.start()
 	seq_missing = 0
@@ -312,7 +317,7 @@ if __name__ == "__main__":
 				else:
 					last_packet_flag = 0
 
-				prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,last_packet_flag,len(file_data))
+				prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,last_packet_flag,len(file_data),hash_ready)
 
 				sent_packets = sent_packets + 1
 
@@ -338,7 +343,7 @@ if __name__ == "__main__":
 			else:
 				last_packet_flag = 0
 
-			prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,last_packet_flag,len(file_data))
+			prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,last_packet_flag,len(file_data),hash_ready)
 			thread_state = 2
 			sent_packets = sent_packets + 1
 			start_time = time.time()
@@ -418,7 +423,7 @@ if __name__ == "__main__":
 				f.close
 				f = open('log.txt','rb')
 				file_data = f.read(MAX_SIZE_MESSAGE)
-				prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,2,len(file_data))
+				prepare_packet(recv_client_mac,src_mac,dest_ip,file_data,fast_mode,sent_packets,0,2,len(file_data),hash_ready)
 				# SEND LAST PACKET = 2 TO START COMM
 				# SLEEP 
 				# GOTO SEND PACKET
@@ -433,5 +438,4 @@ if __name__ == "__main__":
 
 
 			
-
 
