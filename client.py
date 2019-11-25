@@ -5,6 +5,8 @@ import time
 import ipaddress
 import hashlib
 import requests
+import operator
+import functools
 from socket import AF_PACKET, SOCK_RAW
 from struct import *
 
@@ -28,6 +30,10 @@ def unpack_ipv4(data):
 def unpack_udp(data):
     src_port, dest_port, size, checksum = unpack('!HHHH', data[:8]) #Pacote de 8 bytes
     return src_port, dest_port, size
+
+def unpack_hash(data): #unpack hash tuple
+    hash_data = unpack('!32s',data[:32])
+    return hash_data
 
 def get_ipv4_addr(bytes_addr): 
         return str(ipaddress.ip_address(bytes_addr))
@@ -85,16 +91,24 @@ def prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,sub_seq_number):
         sub_ack_field = ack
         sub_lastpacket = last_packet
         sub_send_mode = 0
-        file_checksum = 0 #md5sum('log.txt') FALTA ISSO AINDA
+        file_checksum = 0
         udp_sub_header = pack ('!BBBBB', sub_seq_number, sub_ack_field, sub_lastpacket,sub_send_mode,file_checksum)
-        packet = eth_header + ip_header + udp_header + udp_sub_header
+        #print(hash_client)
+        #hash_header = ('p',hash_client)
+
+        packet = eth_header + ip_header + udp_header + udp_sub_header #+ hash_header
 
         send_pack = sendeth(packet, interface)
-        #print("sent %d bytes" % send_pack)
+        #print("sent:",send_pack)
 
 def deleteContent(fname):
     with open(fname,"w"):
         pass
+
+def conv_hash(hash_bytes): ##function to convert tuple to byte then to string
+    hash_server = functools.reduce(operator.add,(hash_bytes))
+    hash_final = hash_server.decode("utf-8")
+    return hash_final
 
 def md5Checksum(filepath,url):
     m = hashlib.md5()
@@ -121,6 +135,8 @@ if __name__ == "__main__":
     checksum_udp = 0
     lenght_data = 0
     received_seq = 0
+    #hash_client = '903738b23b241ebecbdf62a14183e37f'
+    #type(hash_client)
     #-----------------------------------------
     while(1):
         if(state == 0):
@@ -140,36 +156,57 @@ if __name__ == "__main__":
                     up_client_ip, up_server_ip = unpack_ipv4(raw_packet[14:])
                     up_client_port, up_server_port,up_udp_size = unpack_udp(raw_packet[34:])
                     sub_seq_number,sub_ack_field,sub_lastpacket,sub_send_mode,sub_checksum = unpack_udp_sub_header(raw_packet[42:])
-                    data = raw_packet[47:546]
+                    hash_bytes = unpack_hash(raw_packet[47:]) #unpack hash tuple
+                    data = raw_packet[79:]
+                    hash_final = conv_hash(hash_bytes) ##function to convert tuple to byte then to string
                     #------------------------------------------
                     print(data)
-                    print("\n--- ---------Message received---------")
-                    print(sub_seq_number)
+                    print("\n---------Message received---------")
+                    print("Received SEQ",sub_seq_number)
+                    print("Wanted   SEQ",received_seq)
                     f.write(data)
                     lenght_data = lenght_data + len(data)
                     prepare_pack(source_ip,dest_ip,0,1,checksum_udp,sub_seq_number)
+                    #------------------------------------------
                     if(sub_lastpacket == 2):
                         deleteContent("log_2.txt")
-                        print("Last_Packet errado")
+                        print("RESET received")
                         prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
+                        received_seq = 0
+                        time.sleep(1)
+                     
                         state = 0
+                    #------------------------------------------
                     if(received_seq != sub_seq_number):
                         deleteContent("log_2.txt")
                         print("Seq_Number errado")
                         prepare_pack(source_ip,dest_ip,0,0,checksum_udp,0) #faz o servidor parar
+                        time.sleep(2)
+                        received_seq = 0
+                 
                         state = 0
-                    received_seq = received_seq + 1   
+                    received_seq = received_seq + 1  
+                    #------------------------------------------ 
                     if(sub_lastpacket == 1 ):
+                        
+                        f.close()
                         state = 2
             #----------------------------------------
             #total -8 (header) - 5 (sub_header) para o udp size [47 até (udp_size-13)]
         if(state == 2):
-            if(lenght_data == os.path.getsize('log_2.txt') and md5Checksum("log.txt",None) == md5Checksum("log_2.txt",None)):
+            if(lenght_data == os.path.getsize('log_2.txt') and hash_final == md5Checksum("log_2.txt",None)):
                 print("Checksum correto")
-                print(md5Checksum("log.txt",None))
+                print(hash_final)
                 print(md5Checksum("log_2.txt",None))
                 break
             else:
                 print("Checksum incorreto")
+                print(hash_final)
+                print(md5Checksum("log_2.txt",None))
+
+                time.sleep(1)
+                received_seq = 0
+                f = open('log_2.txt','wb')
+
                 state = 0 #solicita novamente
             
