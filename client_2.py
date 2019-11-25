@@ -99,7 +99,7 @@ def prepare_pack(source_ip,dest_ip,last_packet,ack,checksum_udp,sub_seq_number):
         packet = eth_header + ip_header + udp_header + udp_sub_header #+ hash_header
 
         send_pack = sendeth(packet, interface)
-        print("sent:",send_pack)
+        #print("sent:",send_pack)
 
 def deleteContent(fname):
     with open(fname,"w"):
@@ -189,7 +189,7 @@ if __name__ == "__main__":
                     #------------------------------------------ 
                     if(sub_lastpacket == 1 ):
                         
-                        
+                        f.close()
                         state = 2
             #----------------------------------------
             #total -8 (header) - 5 (sub_header) para o udp size [47 até (udp_size-13)]
@@ -206,6 +206,7 @@ if __name__ == "__main__":
 
                 time.sleep(1)
                 received_seq = 0
+                f = open('log_2.txt','wb')
 
                 state = 0 #solicita novamente
             
